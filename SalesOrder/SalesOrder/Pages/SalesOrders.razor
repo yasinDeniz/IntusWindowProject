@@ -1,0 +1,81 @@
+﻿@page "/salesorders"
+@inject HttpClient Http
+@inject Services.ApiService ApiService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Sales Orders</PageTitle>
+
+<div style="display: flex; justify-content: space-between; align-items: center;">
+    <h1>Sales Orders</h1>
+    <button class="btn btn-success" @onclick="@AddOrder">Add Order</button>
+</div>
+
+@if (data == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <!--<th>OrderId</th>--> <!--for the developer-->
+                <th>Name</th>
+                <th>State</th>
+                <th></th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in data)
+            {
+                <tr>
+                    @* <td>@item.OrderId</td> *@<!--for the developer-->
+                    <td>@item.Name</td>
+                    <td>@item.State</td>
+                    <td><button class="btn btn-primary btn-sm" @onclick="@(()=>ShowDetail(@item.OrderId))">View</button></td>
+                    <td><button class="btn btn-danger btn-sm" @onclick="@(()=>DeleteOrder(item.OrderId))">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private SalesOrder.Models.Order[]? data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        data = await ApiService.GetAsync<SalesOrder.Models.Order[]>("http://localhost:5010/api/Orders/GetOrders");/*DatabaseAPI Uri*/
+    }
+
+    void ShowDetail(int OrderId)
+    {
+        NavigationManager.NavigateTo("/orderdetail/" + OrderId);
+    }
+    async Task DeleteOrder(int OrderId)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete the order?", null);
+
+        if (confirm)
+        {
+            var response = await Http.DeleteAsync($"http://localhost:5010/api/Orders/DeleteOrder/{OrderId}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                data = await ApiService.GetAsync<SalesOrder.Models.Order[]>("http://localhost:5010/api/Orders/GetOrders");/*DatabaseAPI Uri*/
+                await JSRuntime.InvokeAsync<object>("alert", "The order has been deleted successfully.", null);
+            }
+            else
+            {
+                await JSRuntime.InvokeAsync<object>("alert", "The order could not be deleted. Please try again.", null);
+            }
+        }
+    }
+
+    void AddOrder()
+    {
+        NavigationManager.NavigateTo("/addorder");
+    }
+}

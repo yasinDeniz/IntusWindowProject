@@ -1,0 +1,168 @@
+﻿@page "/orderdetail/{OrderId}"
+@inject HttpClient Http
+@inject Services.ApiService ApiService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Order Detail</PageTitle>
+
+<div class="container mt-6">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Order Detail</h1>
+        <button class="btn btn-primary" @onclick="ToggleEditMode">Edit</button>
+    </div>
+
+    @if (order == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <div class="container mt-6">
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input id="name" class="form-control" readonly="@(!isEditMode)" @bind="@order.Name" />
+            </div>
+
+            <div class="form-group">
+                <label for="state">State:</label>
+                <input id="state" class="form-control" readonly="@(!isEditMode)" @bind="@order.State" />
+            </div>
+
+            <div class="form-group">
+                @foreach (var window in order.Windows)
+                {
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <label for="quantity">Windows:</label>
+                            <input id="windowMame" class="form-control" readonly="@(!isEditMode)" @bind="@window.Name" />
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <label for="quantity">Quantity of Windows:</label>
+                                    <input id="quantity" class="form-control" readonly="@(!isEditMode)" @bind="@window.QuantityOfWindows" />
+
+                                    <label for="totalSubElements">Total SubElements:</label>
+                                    <input id="totalSubElements" class="form-control" readonly="@(!isEditMode)" @bind="@window.TotalSubElements" />
+                                </div>
+
+                                <div class="col-md-12">
+                                    <h6>SubElements:</h6>
+                                    <div class="d-flex">
+                                        @foreach (var subElement in window.SubElements)
+                                        {
+                                            <div class="card sub-element me-2">
+                                                <div class="card-body">
+                                                    <label for="element">Element:</label>
+                                                    <input id="element" class="form-control" readonly="@(!isEditMode)" @bind="@subElement.Element" />
+
+                                                    <label for="type">Type:</label>
+                                                    <input id="type" class="form-control" readonly="@(!isEditMode)" @bind="@subElement.Type" />
+
+                                                    <label for="width">Width:</label>
+                                                    <input id="width" class="form-control" readonly="@(!isEditMode)" @bind="@subElement.Width" />
+
+                                                    <label for="height">Height:</label>
+                                                    <input id="height" class="form-control" readonly="@(!isEditMode)" @bind="@subElement.Height" />
+                                                </div>
+                                            </div>
+                                        }
+                                        @if (isEditMode)
+                                        {
+                                            <button class="btn btn-primary" @onclick="() => AddSubElement(window)">Add Subelement</button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="mt-3">
+                @if (isEditMode)
+                {
+                    <button class="btn btn-primary" @onclick="AddWindow">Add Window</button>
+                    <button class="btn btn-success" @onclick="SaveChanges">Save Changes</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+@code {
+    private Models.OrderViewModel order;
+    private bool isEditMode = false;
+    private string notificationMessage = null;
+
+    [Parameter]
+    public string OrderId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (int.TryParse(OrderId, out int orderId))
+        {
+            order = await ApiService.GetAsync<Models.OrderViewModel>("http://localhost:5010/api/Orders/GetOrder?id=" + orderId);/*DatabaseAPI Uri*/
+        }
+    }
+
+    private void ToggleEditMode()
+    {
+        isEditMode = !isEditMode;
+    }
+    private async Task SaveChanges()
+    {
+        var apiEndpoint = "http://localhost:5010/api/Orders/UpdateOrder/" + order.OrderId;/*DatabaseAPI Uri*/
+
+        var updatedOrder = new Models.OrderViewModel
+            {
+                OrderId = order.OrderId,
+                Name = order.Name,
+                State = order.State,
+                Windows = order.Windows.Select(window => new Models.WindowViewModel
+                {
+                    WindowId = window.WindowId,
+                    Name = window.Name,
+                    QuantityOfWindows = window.QuantityOfWindows,
+                    TotalSubElements = window.TotalSubElements,
+                    SubElements = window.SubElements.Select(subElement => new Models.SubElementViewModel
+                    {
+                        SubElementId = subElement.SubElementId,
+                        Element = subElement.Element,
+                        Type = subElement.Type,
+                        Width = subElement.Width,
+                        Height = subElement.Height,
+                        WindowId = subElement.WindowId
+                    }).ToList()
+                }).ToList()
+            };
+
+        var response = await Http.PutAsJsonAsync(apiEndpoint, updatedOrder);
+
+        if (response.IsSuccessStatusCode)
+        {
+            await JSRuntime.InvokeAsync<object>("alert", "Order updated successfully", null);
+            NavigationManager.NavigateTo("/salesorders");
+        }
+        else
+        {
+            await JSRuntime.InvokeAsync<object>("alert", $"Failed to update order. Status code: {response.StatusCode}", null);
+        }
+    }
+
+    private void AddSubElement(Models.WindowViewModel window)
+    {
+        var newSubElement = new Models.SubElementViewModel();
+        window.SubElements.Add(newSubElement);
+    }
+    private void AddWindow()
+    {
+        var newWindow = new Models.WindowViewModel
+            {
+                Name = "New Window", 
+                QuantityOfWindows = 0,
+                TotalSubElements = 0,
+                SubElements = new List<Models.SubElementViewModel>()
+            };
+
+        order.Windows.Add(newWindow);
+    }
+}
+
